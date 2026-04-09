@@ -455,7 +455,8 @@ def plot_levy_mc_vs_theory(x_grid, p_theory, samples, mu, t):
     """
     fig, ax = plt.subplots(figsize=(8, 5))
 
-    ax.hist(samples, bins=300, density=True, alpha=0.35, label="Monte Carlo")
+    samples_clipped = samples[np.abs(samples) < 100]
+    ax.hist(samples_clipped, bins=300, density=True, alpha=0.35, label="Monte Carlo")
     ax.plot(x_grid, p_theory, linewidth=2.5, label="Theory")
 
     # Show a cleaner central region while still keeping visible tails
