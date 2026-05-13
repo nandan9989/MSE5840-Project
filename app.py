@@ -8,6 +8,7 @@ import matplotlib
 matplotlib.use("Agg")  # Needed so matplotlib works cleanly inside Streamlit
 import matplotlib.pyplot as plt
 import streamlit as st
+import streamlit.components.v1 as components
 from matplotlib.animation import FuncAnimation, PillowWriter
 
 # ------------------------------------------------------------
@@ -32,10 +33,82 @@ st.set_page_config(
 )
 
 st.title("Random Walk and Lévy Flight Theory App")
-st.write(
-    "Interactive theory plots, Monte Carlo checks, and animations for "
-    "standard random walks and Lévy flights."
-)
+
+st.markdown("""
+## What is a Lévy Flight?
+
+Imagine you are tracking an animal foraging for food. You will find that most of the time it takes small, nearby steps, enough to thoroughly search an area before making a sudden, very long jump to an entirely different area. That combination of many small steps punctuated by rare large ones is the defining feature of a **Lévy flight**.
+
+Standard random walks are well-documented. Every step has a fixed length, but random direction, and over time the object drifts away from the origin with a characteristic spread that grows as the square root of the number of steps. This is known as **normal diffusion**, which produces a distribution of positions in the shape of a Gaussian.
+
+A Lévy flight replaces those fixed-size steps with step lengths drawn from a heavy-tailed distribution, where the extreme events are far more likely than they would be in a Gaussian distribution. Power-law decay in Lévy flights as opposed to exponential decay for Gaussians is the fundamental difference here. The result is known as **superdiffusion**, where the object spreads through space more quickly than in a standard random walk, even when both methods are normalized to the average step length.
+
+Lévy flights appear in a surprising range of real systems: beyond just the foraging paths of albatrosses and sharks, they can also describe things like cell motion and even fluctuations in financial markets. The key is that in processes where the rare, large events play an outsized role, a Lévy flight can be a more accurate model than a standard random walk.
+
+The key parameter controlling everything is **μ** (mu):
+- **μ = 2** recovers normal Gaussian diffusion — the Lévy flight becomes an ordinary random walk.
+- **μ < 2** produces superdiffusion with increasingly heavy tails as μ decreases toward 0.
+- The smaller μ is, the more "jumpy" the flight becomes, with more frequent large leaps.
+
+---
+
+## Key Equations
+
+### Standard Random Walk
+
+In the long-time (diffusion) limit, the probability of finding the walker at position $x$ at time $t$ is a Gaussian:
+""")
+
+st.latex(r"p(x, t) = \frac{1}{\sqrt{4\pi D t}} \exp\!\left(-\frac{x^2}{4Dt}\right)")
+
+st.markdown(r"where $D = a^2 \Gamma / 2$ is the diffusion coefficient. The mean squared displacement (MSD) grows linearly in time — the hallmark of normal diffusion:")
+
+st.latex(r"\langle x^2 \rangle = 2Dt")
+
+st.markdown("""
+### Lévy Flight
+
+A Lévy flight is characterized by its **characteristic function** — the Fourier transform of the position distribution:
+""")
+
+st.latex(r"\hat{p}(k, t) = e^{-D_1 |k|^\mu t}, \qquad 0 < \mu \leq 2")
+
+st.markdown("This produces a distribution with **power-law tails** instead of exponential decay:")
+
+st.latex(r"P(x, t) \sim |x|^{-(1+\mu)} \quad \text{for large } |x|")
+
+st.markdown(r"Because of these heavy tails, the variance diverges for $\mu < 2$, so MSD is no longer a useful measure of spread. Instead, the natural measure is the width of the distribution (e.g. the interquartile range), which scales as:")
+
+st.latex(r"\text{width} \sim t^{1/\mu}")
+
+st.markdown(r"Since $1/\mu > 1/2$ whenever $\mu < 2$, a Lévy walker always spreads faster than a standard random walker. The full distribution also satisfies a **scaling collapse** — its shape at any time is the same function, just stretched:")
+
+st.latex(r"P(x, t) = t^{-1/\mu} \, G\!\left(\frac{x}{t^{1/\mu}}\right)")
+
+st.markdown(r"Setting $\mu = 2$ recovers the Gaussian exactly, with $D_1 = D$.")
+
+st.markdown("""
+---
+
+## Parameter Guide
+
+| Parameter | Symbol | What it controls |
+|---|---|---|
+| **Step length** | *a* | The fixed step size used in the standard random walk. |
+| **Jump frequency** | *Γ* | How many steps the walker takes per unit time. Together with *t*, this sets the total number of steps *N = Γt*. |
+| **Time** | *t* | The total time elapsed in the simulation. |
+| **Monte Carlo walkers** | — | How many independent walkers to simulate for the histograms. More walkers give smoother distributions but take longer. |
+| **μ (mu)** | *μ* | The stability index of the Lévy flight. Controls how heavy the tails are. Must be between 0 and 2. |
+| **D₁** | *D₁* | The generalized diffusion coefficient for the Lévy flight. Scales the overall spread without changing the shape. |
+| **Times** | — | A comma-separated list of time values at which to plot the Lévy PDF. Use a range spanning an order of magnitude or more to see the scaling behavior clearly. |
+| **x max / Grid points** | — | The spatial range and resolution of the numerical PDF grid. Increase grid points for sharper plots; increase x max if the PDF appears cut off at the edges. |
+| **Animated paths** | — | The number of individual walker trajectories shown in the animations. |
+| **Animation steps** | — | How many steps each animated walker takes. More steps show longer-term behavior. |
+| **Animation dt** | *dt* | The time increment per step in the Lévy animation. Scales the step-length distribution. |
+
+---
+""")
+st.write("Adjust the parameters in the sidebar and press **Run** to generate the animations and theory plots.")
 
 
 # ============================================================
@@ -445,26 +518,22 @@ def plot_levy_width(times, widths, slope, intercept, mu):
     return fig
 
 
-def plot_levy_mc_vs_theory(x_grid, p_theory, samples, mu, t):
+def plot_levy_mc_vs_theory(x_grid, p_theory, p_gaussian, levy_samples, mu, t):
     """
-    Compare Monte Carlo histogram against theoretical PDF.
-
-    Improvements here:
-    - more bins for smoother histogram
-    - explicit x-limits for a cleaner comparison
+    Compare Lévy Monte Carlo histogram against both the Lévy and Gaussian
+    theoretical PDFs on the same axes.
     """
     fig, ax = plt.subplots(figsize=(8, 5))
 
-    samples_clipped = samples[np.abs(samples) < 100]
-    ax.hist(samples_clipped, bins=300, density=True, alpha=0.35, label="Monte Carlo")
-    ax.plot(x_grid, p_theory, linewidth=2.5, label="Theory")
+    levy_clipped = levy_samples[np.abs(levy_samples) < 100]
+    ax.hist(levy_clipped, bins=300, density=True, alpha=0.35, label="Lévy Monte Carlo")
+    ax.plot(x_grid, p_theory, linewidth=2.5, label=f"Lévy theory (μ={mu})")
+    ax.plot(x_grid, p_gaussian, linewidth=2.5, linestyle="--", label="Gaussian theory")
 
-    # Show a cleaner central region while still keeping visible tails
     ax.set_xlim(-50, 50)
-
     ax.set_xlabel("x")
     ax.set_ylabel("Density")
-    ax.set_title(f"Lévy Monte Carlo vs Theory (μ={mu}, t={t})")
+    ax.set_title(f"Lévy vs Gaussian Distribution (t={t})")
     ax.grid(True, alpha=0.25)
     ax.legend()
     fig.tight_layout()
@@ -563,7 +632,9 @@ def make_cloud_animation(x, y, title):
 # ============================================================
 st.sidebar.header("Parameters")
 
-seed = st.sidebar.number_input("Random seed", value=42, step=1)
+if "default_seed" not in st.session_state:
+    st.session_state.default_seed = int(np.random.randint(1, 101))
+seed = st.sidebar.number_input("Random seed", value=st.session_state.default_seed, step=1)
 
 st.sidebar.subheader("Random walk")
 a = st.sidebar.number_input("Step length a", value=1.0)
@@ -604,69 +675,21 @@ if run:
             raise ValueError("Use positive parameters, and grid points should be at least 256.")
 
         # ----------------------------------------------------
-        # Random walk section
+        # Animation section (shown first as the primary visual)
         # ----------------------------------------------------
-        finals = rw_mc_final_positions(int(num_walkers), N, a, int(seed))
-        mean_rw, msd_rw, D_rw, msd_diff = rw_moments(N, a, Gamma, t_rw)
-
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("N", f"{N}")
-        c2.metric("Theory <R²>", f"{msd_rw:.4f}")
-        c3.metric("MC <R²>", f"{np.mean(finals**2):.4f}")
-        c4.metric("2Dt", f"{msd_diff:.4f}")
-
-        st.subheader("Random Walk")
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.pyplot(plot_rw_distribution(N, a, D_rw, t_rw, finals))
-
-        with col2:
-            Nvals = np.array([10, 20, 40, 60, 80, 100, min(N, 120)])
-            Nvals = np.unique(Nvals[Nvals >= 1])
-            st.pyplot(plot_rw_msd_check(Nvals, a, Gamma, int(num_walkers), int(seed)))
-
-        # ----------------------------------------------------
-        # Lévy section
-        # ----------------------------------------------------
-        x_grid = np.linspace(-xmax, xmax, int(nx))
-        pdfs = [levy_pdf_fourier(x_grid, t, mu, D1) for t in times]
-        widths, slope, intercept = levy_width_slope(times, x_grid, pdfs)
-
-        d1, d2, d3 = st.columns(3)
-        d1.metric("z", f"{mu:.4f}")
-        d2.metric("d_c", f"{2 * mu - 2:.4f}")
-        d3.metric("Width slope", f"{slope:.4f}")
-
-        st.subheader("Lévy PDFs and Scaling")
-        col3, col4 = st.columns(2)
-
-        with col3:
-            st.pyplot(plot_levy_pdfs(x_grid, times, pdfs))
-
-        with col4:
-            st.pyplot(plot_levy_scaling(x_grid, times, pdfs, mu))
-
-        st.pyplot(plot_levy_width(times, widths, slope, intercept, mu))
-
-        # Optional Monte Carlo comparison
-        if HAS_SCIPY:
-            t_mc = times[len(times) // 2]
-            p_mc = levy_pdf_fourier(x_grid, t_mc, mu, D1)
-            samples = levy_mc_samples(mu, D1, t_mc, 30000, int(seed))
-
-            st.subheader("Lévy Monte Carlo vs Theory")
-            st.pyplot(plot_levy_mc_vs_theory(x_grid, p_mc, samples, mu, t_mc))
-        else:
-            st.info("SciPy not installed, so the optional Lévy Monte Carlo comparison was skipped.")
-
-        # ----------------------------------------------------
-        # Animation section
-        # ----------------------------------------------------
+        st.markdown('<div id="anim-anchor"></div>', unsafe_allow_html=True)
+        components.html(
+            "<script>"
+            "setTimeout(function(){"
+            "  var el = window.parent.document.getElementById('anim-anchor');"
+            "  if (el) el.scrollIntoView({behavior: 'smooth'});"
+            "}, 100);"
+            "</script>",
+            height=0
+        )
         st.subheader("Animations")
 
         with st.spinner("Generating animations..."):
-            # Random-walk trajectory and cloud animations
             rwx, rwy = rw_mc_trajectories_2d(
                 int(num_anim_paths),
                 int(num_anim_steps),
@@ -686,7 +709,6 @@ if run:
             rw_cloud_gif = anim_to_base64_gif(anim_rw_cloud)
             plt.close(fig_rw_cloud)
 
-            # Lévy trajectory and cloud animations
             lvx, lvy = levy_mc_trajectories_2d(
                 int(num_anim_paths),
                 int(num_anim_steps),
@@ -716,11 +738,20 @@ if run:
                 f'<img src="data:image/gif;base64,{rw_paths_gif}" width="100%">',
                 unsafe_allow_html=True
             )
+            st.caption(
+                "Each walker takes steps of fixed length in a random direction. "
+                "The result is a compact, gradually spreading cluster with no large jumps."
+            )
 
             st.markdown("**Random-Walk Particle Cloud**")
             st.markdown(
                 f'<img src="data:image/gif;base64,{rw_cloud_gif}" width="100%">',
                 unsafe_allow_html=True
+            )
+            st.caption(
+                "Because every step is the same length, the cloud grows smoothly and symmetrically "
+                "outward, maintaining a roughly circular Gaussian shape at all times. The density "
+                "falls off uniformly in every direction with no outliers."
             )
 
         with a2:
@@ -729,12 +760,108 @@ if run:
                 f'<img src="data:image/gif;base64,{lv_paths_gif}" width="100%">',
                 unsafe_allow_html=True
             )
+            st.caption(
+                "Step lengths are drawn from a heavy-tailed distribution, making occasional very long "
+                "jumps far more likely than in a standard random walk. Notice how walkers can suddenly "
+                "relocate far from their previous position — a signature of superdiffusion."
+            )
 
             st.markdown("**Lévy-Flight Particle Cloud**")
             st.markdown(
                 f'<img src="data:image/gif;base64,{lv_cloud_gif}" width="100%">',
                 unsafe_allow_html=True
             )
+            st.caption(
+                "The cloud does not spread uniformly. Instead it retains a dense central core — "
+                "where most walkers remain — while a small number of particles are scattered far "
+                "from the origin by rare large jumps. This heavy-tailed shape persists at all times "
+                "and is the visual signature of the power-law distribution."
+            )
+
+        # D_rw is needed for the Gaussian comparison curve
+        _, _, D_rw, _ = rw_moments(N, a, Gamma, t_rw)
+
+        # ----------------------------------------------------
+        # Lévy section
+        # ----------------------------------------------------
+        x_grid = np.linspace(-xmax, xmax, int(nx))
+        pdfs = [levy_pdf_fourier(x_grid, t, mu, D1) for t in times]
+        widths, slope, intercept = levy_width_slope(times, x_grid, pdfs)
+
+        # Monte Carlo comparison shown first, directly below animations
+        if HAS_SCIPY:
+            t_mc = times[len(times) // 2]
+            p_mc = levy_pdf_fourier(x_grid, t_mc, mu, D1)
+            p_gauss_mc = gaussian_pdf(x_grid, D_rw, t_mc)
+            levy_samples = levy_mc_samples(mu, D1, t_mc, 30000, int(seed))
+
+            st.subheader("Lévy vs Gaussian Distribution")
+            st.pyplot(plot_levy_mc_vs_theory(x_grid, p_mc, p_gauss_mc, levy_samples, mu, t_mc))
+            st.caption(
+                "Both distributions are centered at zero, but their tails behave fundamentally "
+                "differently. The Gaussian decays exponentially, meaning the probability of a large "
+                "displacement drops off extremely fast. The Lévy distribution decays as a power law, "
+                "which falls off far more slowly. "
+                "No matter how wide the Gaussian is made, the Lévy tails will always extend further. "
+                "Extreme events that are essentially impossible under normal diffusion remain genuinely "
+                "probable in a Lévy flight."
+            )
+        else:
+            st.info("SciPy not installed, so the optional Lévy Monte Carlo comparison was skipped.")
+
+        d1, d2, d3 = st.columns(3)
+        d1.metric("z", f"{mu:.4f}")
+        d2.metric("d_c", f"{2 * mu - 2:.4f}")
+        d3.metric("Width slope", f"{slope:.4f}")
+
+        st.subheader("Lévy PDFs")
+        st.pyplot(plot_levy_pdfs(x_grid, times, pdfs))
+        st.caption(
+            "Each curve shows the probability distribution of particle positions at a different "
+            "point in time. As time progresses the distribution broadens and flattens, reflecting "
+            "the spreading of the particle cloud. The heavy tails remain visible at all times — "
+            "there is always a non-negligible probability of finding a particle far from the origin."
+        )
+
+        st.pyplot(plot_levy_width(times, widths, slope, intercept, mu))
+        st.caption(
+            f"The width of the distribution (measured by the interquartile range) is plotted against "
+            f"time on a log-log scale. Theory predicts this width grows as t^(1/μ) — here "
+            f"t^(1/{mu:.2f}) = t^({1/mu:.4f}). The estimated slope from the data is {slope:.4f}, "
+            f"which should match the theoretical exponent of {1/mu:.4f}. A straight line on a "
+            f"log-log plot confirms the power-law relationship."
+        )
+
+        st.markdown("---")
+        st.markdown("""
+## Conclusion
+
+The standard random walk is an elegant model, but nature rarely moves in equal-sized steps. Real
+systems are often governed by dynamics in which rare,
+large events play an outsized role, and it is precisely these events that a Lévy flight captures.
+
+The key insight is a simple one: replacing the Gaussian step-length distribution with a power-law
+distribution changes the character of motion entirely. Spreading is faster, tails are always heavier,
+and extreme displacements are never truly negligible. These are not just mathematical curiosities —
+they show up in the real world.
+
+When an albatross or a shark forages for food, GPS tracking reveals a movement pattern that closely
+follows a Lévy flight: many short exploratory steps within a local area, punctuated by occasional
+long-range relocations to a completely new region. This turns out to be close to the optimal
+search strategy when food is sparse and unpredictably distributed, as the heavy-tailed jump lengths
+allow the animal to escape depleted areas efficiently without wasting energy on purely random wandering.
+
+In financial markets, the analogy is equally strong. Daily price returns are far better described
+by a heavy-tailed distribution than a Gaussian one. The crashes and surges that appear as
+statistical outliers under a normal distribution — once-in-a-century events by Gaussian logic —
+occur at a much greater frequency in practice. Models that ignore this, as many
+classical finance models do, systematically underestimate the probability of extreme moves.
+
+The broader lesson is that when you observe a process driven by many independent random events,
+the Gaussian is not always the right default. If the underlying step-length distribution has a
+heavy tail, the collective behavior will too. The difference between the two, as this tool
+shows, is both mathematically precise and visually dramatic.
+""")
 
     except Exception as e:
         st.error(str(e))
