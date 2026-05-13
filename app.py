@@ -109,6 +109,8 @@ st.markdown("""
 ---
 """)
 st.write("Adjust the parameters in the sidebar and press **Run** to generate the animations and theory plots.")
+if not HAS_SCIPY:
+    st.warning("Note: the Lévy vs Gaussian Distribution plot requires SciPy, which does not appear to be installed (`pip install scipy`).")
 
 
 # ============================================================
