@@ -863,5 +863,18 @@ heavy tail, the collective behavior will too. The difference between the two, as
 shows, is both mathematically precise and visually dramatic.
 """)
 
+        st.markdown("---")
+        st.markdown("""
+## Further Reading
+
+For more on the theory and applications of Lévy flights, take a look at the following:
+
+- Klages, R., Radons, G., & Sokolov, I. M. — *Anomalous Transport: Foundations and Applications*, Ch. 5: Introduction to the Theory of Lévy Flights.
+  [https://doi.org/10.1002/9783527622979.ch5](https://doi.org/10.1002/9783527622979.ch5)
+
+- Fogedby, H. C. — *Lévy Flights in Random Environments*. Physical Review Letters, 1994.
+  [https://doi.org/10.1103/PhysRevLett.73.2517](https://doi.org/10.1103/PhysRevLett.73.2517)
+""")
+
     except Exception as e:
         st.error(str(e))
